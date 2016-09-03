@@ -1,5 +1,6 @@
 
 const React            = require('react');
+const ReactDOM         = require('react-dom');
 const rewire           = require('rewire');
 const EditorContainer  = rewire('../EditorContainer.js');
 const TestUtils        = require('react/lib/ReactTestUtils');
@@ -123,7 +124,7 @@ describe('Editor Container Tests', () => {
       // otherwise IE (11) gives an error when we try and setCaretAtEndOfInput
       container = document.createElement('div');
       document.body.appendChild(container);
-      component = React.render(<EditorContainer
+      component = ReactDOM.render(<EditorContainer
         rowData={rowData}
         value={'Adwolf'}
         cellMetaData={cellMetaData}

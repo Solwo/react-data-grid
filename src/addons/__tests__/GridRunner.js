@@ -2,13 +2,16 @@ const React        = require('react');
 const ReactDOM = require('react-dom');
 const TestUtils    = require('react/lib/ReactTestUtils');
 const ExampleGrid = require('../../../examples/scripts/example14-all-features-immutable');
+const mount = require('enzyme').mount;
 
 export default class GridRunner {
   /* =====
   SETUP
   ======== */
   constructor({renderIntoBody = false}) {
-    this.grid = this._renderGrid(renderIntoBody);
+    const wrapper = this._renderGrid(renderIntoBody);
+    this.wrapper = wrapper;
+    this.grid = renderIntoBody ? wrapper : wrapper.node;
     this.renderIntoBody = renderIntoBody;
   }
 
@@ -16,7 +19,7 @@ export default class GridRunner {
     this.handleCellDragSpy = jasmine.createSpy('handleCellDrag');
     return intoBody ?
       ReactDOM.render(<ExampleGrid handleCellDrag={this.handleCellDragSpy}/>, document.body)
-      : TestUtils.renderIntoDocument(<ExampleGrid handleCellDrag={this.handleCellDragSpy}/>);
+      : mount(<ExampleGrid handleCellDrag={this.handleCellDragSpy}/>);
   }
 
   dispose() {
@@ -36,7 +39,7 @@ export default class GridRunner {
       .clickIntoEditor({cellIdx: selectCell, rowIdx: selectRow})
       .setValue(val)
       .keyDown(ev)
-      .hasCommitted(val)
+      .hasCommitted(val, selectCell, selectRow)
       .hasSelected({cellIdx: expectCell, rowIdx: expectRow})
       .dispose();
   }
@@ -196,8 +199,16 @@ export default class GridRunner {
   /* =====
   ASSERTS
   ======== */
-  hasCommitted(val) {
-    expect(this.cell.props.value).toEqual(val);
+  hasCommitted(val, rowIdx, cellIdx) {
+    let cell;
+    let value;
+    if (val !== '') {
+      cell = this.wrapper.find('[value="' + val + '"]');
+      value = cell.props().value;
+    } else {
+      cell = this.wrapper.find('.react-grid-Row').nodes[rowIdx].childNodes[cellIdx];
+    }
+    expect(value).toEqual(val);
     return this;
   }
   isNotEditable() {
@@ -210,10 +221,9 @@ export default class GridRunner {
   }
   hasSelected({rowIdx, cellIdx, expectedClass = '.selected'}) {
     // and should move to the appropriate cell/row
-    const selectedRow = TestUtils.scryRenderedDOMComponentsWithClass(this.grid, 'react-grid-Row')[rowIdx];
-    const selected = selectedRow.querySelector(expectedClass);
-    expect(selected.props.rowIdx).toEqual(rowIdx);
-    expect(selected.props.idx).toEqual(cellIdx);
+    const selected = this.wrapper.find(expectedClass).props();
+    expect(selected.rowIdx).toEqual(rowIdx);
+    expect(selected.idx).toEqual(cellIdx);
     return this;
   }
   hasCopied({cellIdx, rowIdx}) {
@@ -226,7 +236,7 @@ export default class GridRunner {
     // check onCellDrag called with correct data
     expect(this.handleCellDragSpy).toHaveBeenCalled();
     // Note - fake date is random, so need to test vs the assigned value as it WILL change (and bust the test)
-    let expected = this.cell.props.value;
+    let expected = this.cell.attributes.value.value;
     // chek our event returns the right data
     expect(this.handleCellDragSpy.argsForCall[0][0]).toEqual({cellKey: cellKey, fromRow: from, toRow: to, value: expected});
     // Test all rows to check that value has copied correctly
@@ -234,7 +244,7 @@ export default class GridRunner {
     for (let i = from, end = to; i <= end; i++) {
       const toCell = this.getCells(rows[i])[col];
       // First the component
-      expect(toCell.props.value).toEqual(expected);
+      expect(toCell.attributes.value.value).toEqual(expected);
       // and finally the rendered data
       // (use trim as we are reading from the dom so get some whitespace at the end)
       expect(ReactDOM.findDOMNode(toCell.querySelector('.react-grid-Cell__value')).textContent.trim()).toEqual(expected.trim());
